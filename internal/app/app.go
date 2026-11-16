@@ -1,21 +1,27 @@
 package app
 
 import (
+	"context"
 	"log/slog"
 	grpcapp "sso_service/internal/app/grpc"
-	"time"
+	"sso_service/internal/config"
+	"sso_service/internal/repository/postgres"
+	"sso_service/internal/services/auth"
 )
 
 type App struct {
 	GRPCServer *grpcapp.App
+	Repo       *postgres.Repository
 }
 
-func New(log *slog.Logger, grpcPort int, tokenTTL time.Duration) *App {
-	// init postgres
+func New(ctx context.Context, config *config.Config, log *slog.Logger) *App {
+	repo, err := postgres.NewPool(config, ctx)
+	if err != nil {
+		panic(err)
+	}
+	authService := auth.New(log, repo, repo, repo, config.TokenTTL)
 
-	// init auth service
+	grpcApp := grpcapp.NewApp(log, authService, config.GRPC.Port)
 
-	grpcApp := grpcapp.NewApp(log, grpcPort)
-
-	return &App{GRPCServer: grpcApp}
+	return &App{GRPCServer: grpcApp, Repo: repo}
 }

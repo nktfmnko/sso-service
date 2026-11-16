@@ -1,0 +1,15 @@
+services:
+  pg:
+    image: postgres:18.3-alpine3.23
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: sso
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234
+    ports:
+      - "5434:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql
+
+volumes:
+  pg_data:

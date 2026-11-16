@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -16,12 +17,14 @@ const (
 )
 
 func main() {
+	ctx := context.Background()
 	cfg := config.MustLoad()
 
 	log := setupLogger(cfg.Env)
 	log.Info("start app", slog.String("env", cfg.Env))
 
-	application := app.New(log, cfg.GRPC.Port, cfg.TokenTTL)
+	application := app.New(ctx, cfg, log)
+	defer application.Repo.Close()
 
 	go application.GRPCServer.MustRun()
 

@@ -3,3 +3,10 @@ token_ttl: 1h
 grpc:
   port: 44044
   timeout: 5s
+postgres:
+  user: "postgres"
+  password: "1234"
+  host: "localhost"
+  port: "5434"
+  database: "sso"
+  op_timeout: 3s
