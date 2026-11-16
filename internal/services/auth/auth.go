@@ -86,6 +86,9 @@ func (a *Auth) Login(ctx context.Context, email, password string, appID int) (st
 
 	app, err := a.appProvider.App(ctx, appID)
 	if err != nil {
+		if errors.Is(err, repository.ErrAppNotFound) {
+			return "", fmt.Errorf("%s: %w", op, ErrInvalidAppID)
+		}
 		return "", fmt.Errorf("%s: %w", op, err)
 	}
 

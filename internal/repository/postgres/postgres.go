@@ -100,5 +100,18 @@ func (r *Repository) IsAdmin(ctx context.Context, userID int64) (bool, error) {
 }
 
 func (r *Repository) App(ctx context.Context, appID int) (models.App, error) {
-	panic("impl me")
+	const op = "repository.postgres.App"
+	rows, err := r.Pool.Query(ctx, `SELECT id, name, secret FROM apps WHERE id = $1`, appID)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return models.App{}, fmt.Errorf("%s:%w", op, repository.ErrAppNotFound)
+		}
+	}
+	app, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[models.App])
+	if err != nil {
+		return models.App{}, fmt.Errorf("%s: %w", op, err)
+	}
+
+	return app, nil
 }
