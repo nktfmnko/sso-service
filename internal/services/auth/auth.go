@@ -19,7 +19,6 @@ type UserSaver interface {
 
 type UserProvider interface {
 	User(ctx context.Context, email string) (models.User, error)
-	IsAdmin(ctx context.Context, userID int64) (bool, error)
 }
 
 type AppProvider interface {
@@ -30,7 +29,6 @@ var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrInvalidAppID       = errors.New("invalid app id")
 	ErrUserExists         = errors.New("user already exists")
-	ErrUserNotFound       = errors.New("user not found")
 )
 
 type Auth struct {
@@ -130,26 +128,4 @@ func (a *Auth) Register(ctx context.Context, email, password string) (int64, err
 	}
 
 	return userID, nil
-}
-
-func (a *Auth) IsAdmin(ctx context.Context, userID int64) (bool, error) {
-	const op = "auth.IsAdmin"
-	log := a.log.With(
-		slog.String("op", op),
-		slog.Int64("user_id", userID),
-	)
-
-	log.Info("checking if user is admin")
-
-	isAdmin, err := a.userProvider.IsAdmin(ctx, userID)
-	if err != nil {
-		if errors.Is(err, repository.ErrUserNotFound) {
-			return false, fmt.Errorf("%s: %w", op, ErrUserNotFound)
-		}
-		return false, fmt.Errorf("%s: %w", op, err)
-	}
-
-	log.Info("checked if user is admin", slog.Bool("is_admin", isAdmin))
-
-	return isAdmin, nil
 }

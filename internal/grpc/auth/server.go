@@ -14,7 +14,6 @@ import (
 type AuthService interface {
 	Login(ctx context.Context, email, password string, appID int) (token string, err error)
 	Register(ctx context.Context, email, password string) (userID int64, err error)
-	IsAdmin(ctx context.Context, userID int64) (bool, error)
 }
 
 type serverAPI struct {
@@ -62,21 +61,6 @@ func (s *serverAPI) Register(ctx context.Context, request *ssov1.RegisterRequest
 	return &ssov1.RegisterResponse{UserId: userID}, nil
 }
 
-func (s *serverAPI) IsAdmin(ctx context.Context, request *ssov1.IsAdminRequest) (*ssov1.IsAdminResponse, error) {
-	if err := validateIsAdmin(request); err != nil {
-		return nil, err
-	}
-	isAdmin, err := s.auth.IsAdmin(ctx, request.GetUserId())
-	if err != nil {
-		if errors.Is(err, auth.ErrUserNotFound) {
-			return nil, status.Error(codes.NotFound, "user not found")
-		}
-		return nil, status.Error(codes.Internal, "internal error")
-	}
-
-	return &ssov1.IsAdminResponse{IsAdmin: isAdmin}, nil
-}
-
 func validateLogin(request *ssov1.LoginRequest) error {
 	if request.GetEmail() == "" {
 		return status.Error(codes.InvalidArgument, "email is required")
@@ -99,12 +83,5 @@ func validateRegister(request *ssov1.RegisterRequest) error {
 		return status.Error(codes.InvalidArgument, "password is required")
 	}
 
-	return nil
-}
-
-func validateIsAdmin(request *ssov1.IsAdminRequest) error {
-	if request.GetUserId() == emptyValue {
-		return status.Error(codes.InvalidArgument, "user_id is required")
-	}
 	return nil
 }

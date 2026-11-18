@@ -69,7 +69,7 @@ func (r *Repository) SaveUser(ctx context.Context, email string, passHash []byte
 
 func (r *Repository) User(ctx context.Context, email string) (models.User, error) {
 	const op = "repository.postgres.User"
-	rows, err := r.Pool.Query(ctx, `SELECT id, email, pass_hash FROM users WHERE email = $1`, email)
+	rows, err := r.Pool.Query(ctx, `SELECT id, email, pass_hash, is_admin FROM users WHERE email = $1`, email)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -82,21 +82,6 @@ func (r *Repository) User(ctx context.Context, email string) (models.User, error
 	}
 
 	return user, nil
-}
-
-func (r *Repository) IsAdmin(ctx context.Context, userID int64) (bool, error) {
-	const op = "repository.postgres.IsAdmin"
-	var isAdmin bool
-	err := r.Pool.QueryRow(ctx, `SELECT is_admin FROM users WHERE id = $1`, userID).Scan(&isAdmin)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return false, repository.ErrUserNotFound
-		}
-
-		return false, fmt.Errorf("%s:%w", op, err)
-	}
-
-	return isAdmin, nil
 }
 
 func (r *Repository) App(ctx context.Context, appID int) (models.App, error) {
