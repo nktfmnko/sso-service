@@ -2,18 +2,17 @@ package auth
 
 import (
 	"context"
-	"errors"
-	"sso_service/internal/services/auth"
+	"time"
 
 	ssov1 "github.com/nktfmnko/sso_protos/gen/go/sso"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type AuthService interface {
-	Login(ctx context.Context, email, password string, appID int) (token string, err error)
+	Login(ctx context.Context, email, password string, appID int) (token, refreshToken string, err error)
 	Register(ctx context.Context, email, password string) (userID int64, err error)
+	Refresh(ctx context.Context, refreshToken string) (accessToken, newRefreshToken string, err error)
+	RefreshTokenTTL() time.Duration
 }
 
 type serverAPI struct {
@@ -34,15 +33,22 @@ func (s *serverAPI) Login(ctx context.Context, request *ssov1.LoginRequest) (*ss
 		return nil, err
 	}
 
-	token, err := s.auth.Login(ctx, request.GetEmail(), request.GetPassword(), int(request.GetAppId()))
+	token, refreshToken, err := s.auth.Login(ctx, request.GetEmail(), request.GetPassword(), int(request.GetAppId()))
 	if err != nil {
-		if errors.Is(err, auth.ErrInvalidCredentials) {
-			return nil, status.Error(codes.InvalidArgument, "invalid args")
-		}
-		return nil, status.Error(codes.Internal, "internal error")
+		return nil, ErrorResponse(err, "failed to  login user")
 	}
 
-	return &ssov1.LoginResponse{Token: token}, nil
+	if isWebClient(ctx) {
+		if err := setResfreshTokenCookie(ctx, refreshToken, s.auth.RefreshTokenTTL()); err != nil {
+			return nil, ErrorResponse(err, "failed to  set refresh token cookie")
+		}
+
+		return &ssov1.LoginResponse{
+			Token: token,
+		}, nil
+	}
+
+	return &ssov1.LoginResponse{Token: token, RefreshToken: &refreshToken}, nil
 }
 
 func (s *serverAPI) Register(ctx context.Context, request *ssov1.RegisterRequest) (*ssov1.RegisterResponse, error) {
@@ -52,36 +58,31 @@ func (s *serverAPI) Register(ctx context.Context, request *ssov1.RegisterRequest
 
 	userID, err := s.auth.Register(ctx, request.GetEmail(), request.GetPassword())
 	if err != nil {
-		if errors.Is(err, auth.ErrUserExists) {
-			return nil, status.Error(codes.AlreadyExists, "user already exist")
-		}
-		return nil, status.Error(codes.Internal, "internal error")
+		return nil, ErrorResponse(err, "failed to register user")
 	}
 
 	return &ssov1.RegisterResponse{UserId: userID}, nil
 }
 
-func validateLogin(request *ssov1.LoginRequest) error {
-	if request.GetEmail() == "" {
-		return status.Error(codes.InvalidArgument, "email is required")
-	}
-	if request.GetPassword() == "" {
-		return status.Error(codes.InvalidArgument, "password is required")
-	}
-	if request.GetAppId() == emptyValue {
-		return status.Error(codes.InvalidArgument, "app_id is required")
+func (s *serverAPI) Refresh(ctx context.Context, request *ssov1.RefreshRequest) (*ssov1.RefreshResponse, error) {
+	refreshToken, isWeb, err := extractRefreshToken(ctx, request)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil
-}
-
-func validateRegister(request *ssov1.RegisterRequest) error {
-	if request.GetEmail() == "" {
-		return status.Error(codes.InvalidArgument, "email is required")
-	}
-	if request.GetPassword() == "" {
-		return status.Error(codes.InvalidArgument, "password is required")
+	accessToken, newRefreshToken, err := s.auth.Refresh(ctx, refreshToken)
+	if err != nil {
+		return nil, ErrorResponse(err, "failed to refres token")
 	}
 
-	return nil
+	if isWeb {
+		if err := setResfreshTokenCookie(ctx, newRefreshToken, s.auth.RefreshTokenTTL()); err != nil {
+			return &ssov1.RefreshResponse{AccessToken: accessToken}, nil
+		}
+	}
+
+	return &ssov1.RefreshResponse{
+		AccessToken:  accessToken,
+		RefreshToken: &newRefreshToken,
+	}, nil
 }
