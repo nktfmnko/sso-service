@@ -15,6 +15,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+type requestWithRefreshToken interface {
+	GetRefreshToken() string
+}
+
 func setResfreshTokenCookie(ctx context.Context, token string, ttl time.Duration) error {
 	cookie := &http.Cookie{
 		Name:     "refresh_token",
@@ -30,7 +34,23 @@ func setResfreshTokenCookie(ctx context.Context, token string, ttl time.Duration
 	return grpc.SetHeader(ctx, md)
 }
 
-func extractRefreshToken(ctx context.Context, request *ssov1.RefreshRequest) (string, bool, error) {
+func clearRefreshTokenCookie(ctx context.Context) error {
+	cookie := &http.Cookie{
+		Name:     "refresh_token",
+		Value:    "",
+		Path:     ssov1.Auth_Refresh_FullMethodName,
+		MaxAge:   -1,
+		Expires:  time.Unix(0, 0),
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	}
+
+	md := metadata.Pairs("set-cookie", cookie.String())
+	return grpc.SetHeader(ctx, md)
+}
+
+func extractRefreshToken(ctx context.Context, request requestWithRefreshToken) (string, bool, error) {
 	if token := request.GetRefreshToken(); token != "" {
 		return token, false, nil
 	}
@@ -114,9 +134,9 @@ func ErrorResponse(err error, msg string) error {
 		code = codes.InvalidArgument
 	case errors.Is(err, auth.ErrUserExists), errors.Is(err, auth.ErrTokenExists):
 		code = codes.AlreadyExists
-	case errors.Is(err, auth.ErrUserNotFound), errors.Is(err, auth.ErrTokenNotFound), errors.Is(err, auth.ErrSessionNotFound), errors.Is(err, auth.ErrAppNotFound):
+	case errors.Is(err, auth.ErrUserNotFound), errors.Is(err, auth.ErrAppNotFound):
 		code = codes.NotFound
-	case errors.Is(err, auth.ErrTokenAlreadyRevoked):
+	case errors.Is(err, auth.ErrTokenAlreadyRevoked), errors.Is(err, auth.ErrTokenNotFound), errors.Is(err, auth.ErrSessionNotFound):
 		code = codes.Unauthenticated
 	default:
 		code = codes.Internal
