@@ -202,3 +202,41 @@ func (r *Repository) RotateRefreshToken(ctx context.Context, oldSessionID int64,
 
 	return nil
 }
+
+func (r *Repository) RevokeSession(ctx context.Context, sessionID int64) error {
+	const op = "repository.postgres.RevokeSession"
+
+	opCtx, cancel := context.WithTimeout(ctx, r.opTimeout)
+	defer cancel()
+
+	const query = `
+		UPDATE sessions 
+		SET revoked_at = NOW() 
+		WHERE id = $1 AND revoked_at IS NULL
+	`
+
+	if _, err := r.Pool.Exec(opCtx, query, sessionID); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
+}
+
+func (r *Repository) RevokeAllUserSessions(ctx context.Context, userID int64) error {
+	const op = "repository.postgres.RevokeAllUserSessions"
+
+	opCtx, cancel := context.WithTimeout(ctx, r.opTimeout)
+	defer cancel()
+
+	const query = `
+		UPDATE sessions 
+		SET revoked_at = NOW() 
+		WHERE user_id = $1 AND revoked_at IS NULL
+	`
+
+	if _, err := r.Pool.Exec(opCtx, query, userID); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
+}

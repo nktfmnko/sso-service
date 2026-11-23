@@ -6,6 +6,7 @@ import (
 
 	ssov1 "github.com/nktfmnko/sso_protos/gen/go/sso"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type AuthService interface {
@@ -13,6 +14,7 @@ type AuthService interface {
 	Register(ctx context.Context, email, password string) (userID int64, err error)
 	Refresh(ctx context.Context, refreshToken string) (accessToken, newRefreshToken string, err error)
 	RefreshTokenTTL() time.Duration
+	Logout(ctx context.Context, refreshToken string, revokeAll bool) error
 }
 
 type serverAPI struct {
@@ -85,4 +87,29 @@ func (s *serverAPI) Refresh(ctx context.Context, request *ssov1.RefreshRequest) 
 		AccessToken:  accessToken,
 		RefreshToken: &newRefreshToken,
 	}, nil
+}
+
+func (s *serverAPI) Logout(ctx context.Context, request *ssov1.LogoutRequest) (*emptypb.Empty, error) {
+	refreshToken, isWeb, err := extractRefreshToken(ctx, request)
+	if err != nil {
+		if isWebClient(ctx) {
+			_ = clearRefreshTokenCookie(ctx)
+		}
+		return nil, err
+	}
+
+	if err := s.auth.Logout(ctx, refreshToken, request.GetRevokeAll()); err != nil {
+		if isWeb {
+			_ = clearRefreshTokenCookie(ctx)
+		}
+		return nil, ErrorResponse(err, "failed to logout")
+	}
+
+	if isWeb {
+		if err := clearRefreshTokenCookie(ctx); err != nil {
+			return nil, ErrorResponse(err, "failed to clear cookie")
+		}
+	}
+
+	return nil, nil
 }

@@ -29,6 +29,8 @@ type TokenStorage interface {
 	SaveRefreshToken(ctx context.Context, session models.RefreshSession) error
 	RefreshSession(ctx context.Context, tokenHash string) (models.RefreshSession, error)
 	RotateRefreshToken(ctx context.Context, oldSessionID int64, newSession models.RefreshSession) error
+	RevokeSession(ctx context.Context, sessionID int64) error
+	RevokeAllUserSessions(ctx context.Context, userID int64) error
 }
 
 var (
@@ -206,4 +208,35 @@ func (a *Auth) Refresh(ctx context.Context, refreshToken string) (accessToken, n
 
 func (a *Auth) RefreshTokenTTL() time.Duration {
 	return a.refreshTokenTTL
+}
+
+func (a *Auth) Logout(ctx context.Context, refreshToken string, revokeAll bool) error {
+	const op = "auth.Refresh"
+	log := a.log.With(
+		slog.String("op", op),
+	)
+
+	log.Info("logout")
+
+	tokenHash := hashToken(refreshToken)
+
+	session, err := a.tokenStorage.RefreshSession(ctx, tokenHash)
+	if err != nil {
+		log.Error("failed to get refresh session", slog.Any("err", err))
+		return fmt.Errorf("%s: %w", op, parseRepositoryError(err))
+	}
+
+	if revokeAll {
+		if err := a.tokenStorage.RevokeSession(ctx, session.ID); err != nil {
+			log.Error("failed to revoke session", slog.Any("err", err))
+			return fmt.Errorf("%s: %w", op, parseRepositoryError(err))
+		}
+	}
+
+	if err := a.tokenStorage.RevokeAllUserSessions(ctx, session.UserID); err != nil {
+		log.Error("failed to revoke all user sessions", slog.Any("err", err))
+		return fmt.Errorf("%s: %w", op, parseRepositoryError(err))
+	}
+
+	return nil
 }
