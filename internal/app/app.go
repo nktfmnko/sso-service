@@ -19,7 +19,7 @@ func New(ctx context.Context, config *config.Config, log *slog.Logger) *App {
 	if err != nil {
 		panic(err)
 	}
-	authService := auth.New(log, repo, repo, repo, config.TokenTTL)
+	authService := auth.New(log, repo, repo, repo, repo, config.TokenTTL, config.RefreshTokenTTL)
 
 	grpcApp := grpcapp.NewApp(log, authService, config.GRPC.Port)
 

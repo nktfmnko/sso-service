@@ -2,7 +2,9 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"net/http"
+	"sso_service/internal/services/auth"
 	"strings"
 	"time"
 
@@ -104,4 +106,24 @@ func validateRegister(request *ssov1.RegisterRequest) error {
 	}
 
 	return nil
+}
+func ErrorResponse(err error, msg string) error {
+	var code codes.Code
+	switch {
+	case errors.Is(err, auth.ErrInvalidCredentials), errors.Is(err, auth.ErrInvalidRefreshToken):
+		code = codes.InvalidArgument
+	case errors.Is(err, auth.ErrUserExists), errors.Is(err, auth.ErrTokenExists):
+		code = codes.AlreadyExists
+	case errors.Is(err, auth.ErrUserNotFound), errors.Is(err, auth.ErrTokenNotFound), errors.Is(err, auth.ErrSessionNotFound), errors.Is(err, auth.ErrAppNotFound):
+		code = codes.NotFound
+	case errors.Is(err, auth.ErrTokenAlreadyRevoked):
+		code = codes.Unauthenticated
+	default:
+		code = codes.Internal
+	}
+	return errorResponse(code, err, msg)
+}
+
+func errorResponse(statusCode codes.Code, err error, msg string) error {
+	return status.Errorf(statusCode, "%s :%v", msg, err)
 }

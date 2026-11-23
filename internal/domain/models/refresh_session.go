@@ -8,4 +8,5 @@ type RefreshSession struct {
 	AppID     int
 	TokenHash string
 	ExpiresAt time.Time
+	RevokedAt *time.Time
 }

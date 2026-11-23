@@ -9,10 +9,11 @@ import (
 )
 
 type Config struct {
-	Env      string         `yaml:"env" env-default:"local"`
-	TokenTTL time.Duration  `yaml:"token_ttl" env-required:"true"`
-	GRPC     GRPCConfig     `yaml:"grpc"`
-	Postgres PostgresConfig `yaml:"postgres"`
+	Env             string         `yaml:"env" env-default:"local"`
+	TokenTTL        time.Duration  `yaml:"token_ttl" env-required:"true"`
+	RefreshTokenTTL time.Duration  `yaml:"refresh_token_ttl" env-required:"true"`
+	GRPC            GRPCConfig     `yaml:"grpc"`
+	Postgres        PostgresConfig `yaml:"postgres"`
 }
 
 type GRPCConfig struct {
